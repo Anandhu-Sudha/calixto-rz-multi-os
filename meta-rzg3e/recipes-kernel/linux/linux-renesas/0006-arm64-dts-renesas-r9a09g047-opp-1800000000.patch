@@ -1,0 +1,36 @@
+diff --git a/arch/arm64/boot/dts/renesas/r9a09g047.dtsi b/arch/arm64/boot/dts/renesas/r9a09g047.dtsi
+index 5c638ec73b30..e902dc0274a4 100644
+--- a/arch/arm64/boot/dts/renesas/r9a09g047.dtsi
++++ b/arch/arm64/boot/dts/renesas/r9a09g047.dtsi
+@@ -117,23 +117,23 @@ et1_rxc_rx_clk: et1_rxc_rx_clk {
+ 	cluster0_opp: opp-table-0 {
+ 		compatible = "operating-points-v2";
+ 
+-		opp-1700000000 {
+-			opp-hz = /bits/ 64 <1700000000>;
++		opp-1800000000 {
++			opp-hz = /bits/ 64 <1800000000>;
+ 			opp-microvolt = <900000>;
+ 			clock-latency-ns = <300000>;
+ 		};
+-		opp-850000000 {
+-			opp-hz = /bits/ 64 <850000000>;
++		opp-900000000 {
++			opp-hz = /bits/ 64 <900000000>;
+ 			opp-microvolt = <800000>;
+ 			clock-latency-ns = <300000>;
+ 		};
+-		opp-425000000 {
+-			opp-hz = /bits/ 64 <425000000>;
++		opp-450000000 {
++			opp-hz = /bits/ 64 <450000000>;
+ 			opp-microvolt = <800000>;
+ 			clock-latency-ns = <300000>;
+ 		};
+-		opp-212500000 {
+-			opp-hz = /bits/ 64 <212500000>;
++		opp-225000000 {
++			opp-hz = /bits/ 64 <225000000>;
+ 			opp-microvolt = <800000>;
+ 			clock-latency-ns = <300000>;
+ 			opp-suspend;

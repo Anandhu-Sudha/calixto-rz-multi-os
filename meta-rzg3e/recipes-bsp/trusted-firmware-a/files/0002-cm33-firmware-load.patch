@@ -1,0 +1,524 @@
+diff --git a/plat/renesas/rz/common/g3e_common.mk b/plat/renesas/rz/common/g3e_common.mk
+index 7081f167d..d1bd28721 100644
+--- a/plat/renesas/rz/common/g3e_common.mk
++++ b/plat/renesas/rz/common/g3e_common.mk
+@@ -28,6 +28,9 @@ endif
+
+ $(eval $(call add_define,PLAT_SOC_RZG3E))
+ $(eval $(call add_define,PROTECTED_CHIPID))
++ifeq (${ENABLE_CM33_FIRMWARE_LOAD}, 1)
++$(eval $(call add_define,PLAT_TBBR_IMG_DEF))
++endif
+ $(eval $(call add_define,PLAT_EMMC_WRITE_ENABLE))
+ $(eval $(call add_define,PLAT_DDR_ECC))
+ $(eval $(call add_define,PLAT_SYSTEM_SUSPEND))
+diff --git a/plat/renesas/rz/soc/g3e/bl2_plat_mem_params_desc.c b/plat/renesas/rz/soc/g3e/bl2_plat_mem_params_desc.c
+index cd013a9..48f14de 100644
+--- a/plat/renesas/rz/soc/g3e/bl2_plat_mem_params_desc.c
++++ b/plat/renesas/rz/soc/g3e/bl2_plat_mem_params_desc.c
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2022, Renesas Electronics Corporation. All rights reserved.
++ * Copyright (c) 2025, Renesas Electronics Corporation. All rights reserved.
+  *
+  * SPDX-License-Identifier: BSD-3-Clause
+  */
+@@ -70,8 +70,27 @@ static bl_mem_params_node_t bl2_mem_params_descs[] = {
+ 				(uint32_t) (BL33_LIMIT - BL33_BASE),
+ 		.image_info.image_base = BL33_BASE,
+ 
++		.next_handoff_image_id = INVALID_IMAGE_ID,
++	},
++#if PLAT_M33_BOOT_SUPPORT
++	{
++		.image_id = BL22_IMAGE_ID,
++
++		SET_STATIC_PARAM_HEAD(ep_info, PARAM_EP, VERSION_2,
++			entry_point_info_t, SECURE | EXECUTABLE),
++		.ep_info.spsr = SPSR_64(MODE_EL3, MODE_SP_ELX,
++			DISABLE_ALL_EXCEPTIONS),
++		.ep_info.pc = BL22_BASE,
++
++		SET_STATIC_PARAM_HEAD(image_info, PARAM_EP, VERSION_2,
++			image_info_t, 0),
++		.image_info.image_max_size =
++				(uint32_t) (BL22_LIMIT - BL22_BASE),
++		.image_info.image_base = BL22_BASE,
++
+ 		.next_handoff_image_id = INVALID_IMAGE_ID,
+ 	}
++#endif /* PLAT_M33_BOOT_SUPPORT */
+ };
+ 
+ REGISTER_BL_IMAGE_DESCS(bl2_mem_params_descs)
+diff --git a/plat/renesas/rz/soc/g3e/bl2_plat_setup.c b/plat/renesas/rz/soc/g3e/bl2_plat_setup.c
+index 479845a67..4dd847941 100644
+--- a/plat/renesas/rz/soc/g3e/bl2_plat_setup.c
++++ b/plat/renesas/rz/soc/g3e/bl2_plat_setup.c
+@@ -28,6 +28,11 @@
+ #include "pwrc.h"
+ #include "sys.h"
+ 
++#if PLAT_M33_BOOT_SUPPORT
++#include <cpg_regs.h>
++#include <pfc_regs.h>
++#endif
++
+ static console_t rzg3e_bl2_console;
+ 
+ static uint32_t bl2_plat_get_boot_mode(void)
+@@ -42,8 +47,17 @@ int bl2_plat_handle_pre_image_load(unsigned int image_id)
+ {
+ 	bl_mem_params_node_t *bl_mem_params = get_bl_mem_params_node(image_id);
+ 
++#if PLAT_M33_BOOT_SUPPORT
++	if (image_id == BL22_IMAGE_ID) {
++		if (sys_is_m33_core_booted()) {
++			bl_mem_params->image_info.h.attr |= IMAGE_ATTRIB_SKIP_LOADING;
++		}
++
++	}
++#else
+ 	if (bl2_plat_get_boot_mode() == RZ_WARM_BOOT)
+ 		bl_mem_params->image_info.h.attr |= IMAGE_ATTRIB_SKIP_LOADING;
++#endif
+ 
+ 	/* Clean next_params_info in BL image node */
+ 	bl_mem_params->params_node_mem.next_params_info = NULL;
+@@ -150,6 +164,10 @@ void bl2_el3_early_platform_setup(u_register_t arg1, u_register_t arg2,
+ void bl2_el3_plat_arch_setup(void)
+ {
+ 	const mmap_region_t bl2_regions[] = {
++#if PLAT_M33_BOOT_SUPPORT
++		MAP_REGION_FLAT(BL22_BASE, BL22_LIMIT - BL22_BASE,
++				MT_CODE | MT_RW | MT_SECURE),
++#endif
+ 		MAP_REGION_FLAT(BL2_BASE, BL2_SRAM_MMU_SIZE,
+ 				MT_MEMORY | MT_RW | MT_SECURE),
+ 		MAP_REGION_FLAT(BL_CODE_BASE, BL_CODE_END - BL_CODE_BASE,
+@@ -195,3 +213,15 @@ void bl2_platform_setup(void)
+ 	NOTICE("BL2: SYS_LSI_DEVID: 0x%x\n", mmio_read_32(SYS_LSI_DEVID));
+ 	NOTICE("BL2: SYS_LSI_PRR: 0x%x\n", mmio_read_32(SYS_LSI_PRR));
+ }
++
++#if PLAT_M33_BOOT_SUPPORT
++void bl2_el3_plat_prepare_exit(void)
++{
++	if (!sys_is_m33_core_booted()) {
++		bl_mem_params_node_t *bl22_mem_params = get_bl_mem_params_node(BL22_IMAGE_ID);
++		if (bl22_mem_params != NULL) {
++			sys_m33_core_boot_on((bl22_mem_params->ep_info).pc);
++		}
++	}
++}
++#endif
+diff --git a/plat/renesas/rz/soc/g3e/drivers/cpg.c b/plat/renesas/rz/soc/g3e/drivers/cpg.c
+index 8640e3ad7..921eeee58 100644
+--- a/plat/renesas/rz/soc/g3e/drivers/cpg.c
++++ b/plat/renesas/rz/soc/g3e/drivers/cpg.c
+@@ -8,6 +8,9 @@
+ #include <cpg_regs.h>
+ #include <lib/mmio.h>
+ #include <drivers/delay_timer.h>
++#if PLAT_M33_BOOT_SUPPORT
++#include <common/debug.h>
++#endif
+ #include <rz_soc_def.h>
+ #include <common/debug.h>
+ #include <lib/utils_def.h>
+@@ -549,6 +552,55 @@ static CPG_SETUP_DATA cpg_reset_tbl[] = {
+ 	},
+ };
+ 
++#if PLAT_M33_BOOT_SUPPORT
++static CPG_SETUP_DATA cpg_m33_clk_on_tbl[] = {
++	{	/* CM33 */
++		.reg =  {
++				.addr = (uintptr_t)CPG_CLKON_1,
++				.val  = 0x00040004,
++				},
++
++		.mon =  {
++				.addr = (uintptr_t)CPG_CLKMON_0,
++				.val  = 0x00040000,
++				},
++
++		.type = CPG_T_CLK
++	},
++};
++#endif
++
++#if PLAT_M33_BOOT_SUPPORT
++static CPG_SETUP_DATA cpg_m33_clkrst_tbl[] = {
++	{	/* CM33 */
++		.reg =  {
++				.addr = (uintptr_t)CPG_RST_1,
++				.val  = 0x00380008,
++				},
++
++		.mon =  {
++				.addr = (uintptr_t)CPG_RSTMON_0,
++				.val  = 0x00020000,
++				},
++
++		.type = CPG_T_CLK
++	},
++	{	/* CM33 */
++		.reg =  {
++				.addr = (uintptr_t)CPG_RST_1,
++				.val  = 0x00380038,
++				},
++
++		.mon =  {
++				.addr = (uintptr_t)CPG_RSTMON_0,
++				.val  = 0x000E0000,
++				},
++
++		.type = CPG_T_CLK
++	},
++};
++#endif
++
+ static CPG_SETUP_DATA cpg_wdt1_clk_rst_tbl[] = {
+	{
+		.reg =  {
+@@ -563,6 +615,17 @@ static CPG_REG_SETTING cpg_dynamic_select_tbl[] = {
+ 	{ (uintptr_t)CPG_CDDIV5,				0x00000000 },
+ };
+ 
++#if PLAT_M33_BOOT_SUPPORT 
++static void cpg_ctrl_clk(CPG_SETUP_DATA const *array, uint32_t num)
++{
++	int i;
++	for (i = 0; i < num; i++, array++) {
++		uint32_t val = (array->reg.val & 0xFFFF) | ((array->reg.val & 0xFFFF) << 16);
++		mmio_write_32(array->reg.addr, val);
++	}
++}
++#endif
++
+ static void cpg_ctrl_clkrst(CPG_SETUP_DATA const *array, uint32_t num, uint32_t ip_control_mask)
+ {
+ 	int i;
+@@ -763,6 +826,10 @@ static void cpg_mstop_setup(void)
+ 										| CPG_BUS_11_MSTOP_GTM6);
+ 
+ 	REMOVE_MSTOPS_W(CPG_BUS_12_MSTOP,     CPG_BUS_12_MSTOP_GTM7
++#if PLAT_M33_BOOT_SUPPORT			
++										| CPG_BUS_12_MSTOP_SRAM1			
++										| CPG_BUS_12_MSTOP_ACPU_TO_MCPU			
++#endif	
+ 										| CPG_BUS_12_MSTOP_MCPU_TO_ACPU);
+ 
+ 	REMOVE_MSTOPS_W(CPG_BUS_13_MSTOP,     CPG_BUS_13_MSTOP_LVDS
+@@ -907,3 +974,52 @@ void cpg_setup(void)
+ 	cpg_div_sel_dynamic_setup();
+ 	cpg_wdtrst_sel_setup();
+ }
++
++#if PLAT_M33_BOOT_SUPPORT
++void cpg_m33_setup(void)
++{
++	cpg_ctrl_clkrst(cpg_m33_clkrst_tbl, ARRAY_SIZE(cpg_m33_clkrst_tbl), CLK_RST_ENABLE);
++}
++
++void cpg_m33_clk_on_setup(void)
++{
++	cpg_ctrl_clk(cpg_m33_clk_on_tbl, ARRAY_SIZE(cpg_m33_clk_on_tbl));
++}
++
++void cpg_m33_pwr_domain_on_setup(void){
++	volatile uint32_t val;
++	mmio_write_32(CPG_LP_CM33CTL1, 0x00003100);
++	do {
++		val = mmio_read_32(CPG_LP_CM33CTL1);
++	} while((val & 0x00100000) != 0x00000000);
++}
++
++void cpg_m33_reset()
++{
++	volatile uint32_t val;
++	mmio_write_32(CPG_CM33_CTL, 0x000000001);
++	mmio_write_32(CPG_RST_1, 0x380000);
++	do {
++		val = mmio_read_32(CPG_RSTMON_0);
++	} while((val & 0xE0000) != 0xE0000);
++}
++
++void cpg_m33_reset_release()
++{
++	volatile uint32_t val;
++
++	mmio_write_32(CPG_RST_1, 0x380008);
++
++	do {
++		val = mmio_read_32(CPG_RSTMON_0);
++	} while((val & 0xE0000) != 0xC0000);
++
++	mmio_write_32(CPG_RST_1, 0x380038);
++
++	do {
++		val = mmio_read_32(CPG_RSTMON_0);
++	} while((val & 0xE0000) != 0);
++	
++	mmio_write_32(CPG_CM33_CTL, 0x000000000);
++}
++#endif
+\ No newline at end of file
+diff --git a/plat/renesas/rz/soc/g3e/drivers/sys.c b/plat/renesas/rz/soc/g3e/drivers/sys.c
+index e0326cea1..a6c98590c 100644
+--- a/plat/renesas/rz/soc/g3e/drivers/sys.c
++++ b/plat/renesas/rz/soc/g3e/drivers/sys.c
+@@ -8,9 +8,20 @@
+ #include <lib/mmio.h>
+ #include <sys.h>
+ #include <sys_regs.h>
++#if PLAT_M33_BOOT_SUPPORT
++#include <cpg.h>
++#include <cpg_regs.h>
++#endif
+ #include <common/debug.h>
+ #include <pwrc_board.h>
+ 
++#if PLAT_M33_BOOT_SUPPORT
++#define G3E_SECURE_VECTOR_ADDRESS 0x08068000 >>7
++#define G3E_NON_SECURE_VECTOR_ADDRESS 0x18068000 >>7
++#define G3E_SYS_MCPU_CFG2_INITSVTOR (G3E_SECURE_VECTOR_ADDRESS << 7)
++#define G3E_SYS_MCPU_CFG3_INITSVTOR (G3E_NON_SECURE_VECTOR_ADDRESS << 7)
++#endif
++
+ /* MD_BOOT [2:0] */
+ #define SYS_LSI_MODE_ESD					(0)
+ #define SYS_LSI_MODE_EMMC_3V3				(1)
+@@ -63,3 +74,28 @@ boot_mode_t sys_get_boot_mode(void)
+ 
+ 	return boot_mode;
+ }
++
++#if PLAT_M33_BOOT_SUPPORT
++void sys_mcpu_config_setup(void)
++{
++	mmio_write_32(SYS_MCPU_CFG2, G3E_SYS_MCPU_CFG2_INITSVTOR);
++	mmio_write_32(SYS_MCPU_CFG3, G3E_SYS_MCPU_CFG3_INITSVTOR);
++}
++
++void sys_m33_core_boot_on(uintptr_t vector)
++{
++	sys_mcpu_config_setup();
++	cpg_m33_clk_on_setup();
++	cpg_m33_pwr_domain_on_setup();
++	cpg_m33_reset();
++	cpg_m33_reset_release();
++}
++
++bool sys_is_m33_core_booted(void)
++{
++	uint32_t clkmon = mmio_read_32(CPG_CLKMON_0) & 0x00040000;
++	uint32_t rstmon = mmio_read_32(CPG_RSTMON_0) & 0x000E0000;
++
++	return (clkmon == 0x00040000) && (rstmon == 0x00000000);
++}
++#endif
+\ No newline at end of file
+diff --git a/plat/renesas/rz/soc/g3e/include/cpg.h b/plat/renesas/rz/soc/g3e/include/cpg.h
+index b7abd2904..3595441f4 100644
+--- a/plat/renesas/rz/soc/g3e/include/cpg.h
++++ b/plat/renesas/rz/soc/g3e/include/cpg.h
+@@ -13,6 +13,14 @@ void cpg_ddr_part1(void);
+ void cpg_ddr_part2(void);
+ void cpg_prepare_suspend(void);
+ void cpg_reset_wdt1(void);
+ void cpg_setup_wdt1(void);
+ 
++#if PLAT_M33_BOOT_SUPPORT
++void cpg_m33_setup(void);
++void cpg_m33_clk_on_setup(void);
++void cpg_m33_pwr_domain_on_setup(void);
++void cpg_m33_reset();
++void cpg_m33_reset_release();
++#endif
++
+ #endif /* __CPG_H__ */
+diff --git a/plat/renesas/rz/soc/g3e/include/plat_tbbr_img_def.h b/plat/renesas/rz/soc/g3e/include/plat_tbbr_img_def.h
+index 431761c1a..9b97ce05f 100644
+--- a/plat/renesas/rz/soc/g3e/include/plat_tbbr_img_def.h
++++ b/plat/renesas/rz/soc/g3e/include/plat_tbbr_img_def.h
+@@ -9,6 +9,8 @@
+ 
+ #define G3E_DDR_CONFIG_ID	(MAX_IMG_IDS_WITH_SPMDS + 0)
+ 
++#define BL22_IMAGE_ID		(MAX_IMG_IDS_WITH_SPMDS + 1)
++
+ #ifdef MAX_NUMBER_IDS
+ 
+ #undef MAX_NUMBER_IDS
+diff --git a/plat/renesas/rz/soc/g3e/include/platform_def.h b/plat/renesas/rz/soc/g3e/include/platform_def.h
+index 09619a432..adde1b8f0 100644
+--- a/plat/renesas/rz/soc/g3e/include/platform_def.h
++++ b/plat/renesas/rz/soc/g3e/include/platform_def.h
+@@ -78,6 +78,14 @@
+ #define BL31_BASE				UL(0x44000000)
+ #define BL31_LIMIT				UL(0x44040000)
+ 
++/*******************************************************************************
++ * BL22 (Cortex-M33)
++ ******************************************************************************/
++#if PLAT_M33_BOOT_SUPPORT
++#define BL22_BASE                   U(0x08066000)
++#define BL22_LIMIT                  U(0x08080000)
++#endif /* PLAT_M33_BOOT_SUPPORT */
++
+ /*******************************************************************************
+  * Platform suspend defines
+  ******************************************************************************/
+diff --git a/plat/renesas/rz/soc/g3e/include/rz_soc_def.h b/plat/renesas/rz/soc/g3e/include/rz_soc_def.h
+index 2156c35..a955c7e 100644
+--- a/plat/renesas/rz/soc/g3e/include/rz_soc_def.h
++++ b/plat/renesas/rz/soc/g3e/include/rz_soc_def.h
+@@ -8,6 +8,9 @@
+ #define __RZ_SOC_DEF_H__
+ 
+ #include <lib/utils_def.h>
++#if PLAT_M33_BOOT_SUPPORT
++#include <common/tbbr/tbbr_img_def.h>
++#endif
+ 
+ #define RZG3E_BOOT_ROM_BASE			UL(0x00000000)
+ #define RZG3E_SRAM0_BASE			UL(0x08000000)
+@@ -88,6 +88,14 @@
+ #define RZG3E_EMMC_FIP_BASE			RZG3E_BL2_SIZE_MAX
+ #define RZG3E_EMMC_FIP_SIZE			RZG3E_FIP_SIZE_MAX
+ 
++#if PLAT_M33_BOOT_SUPPORT
++#define RZG3E_M33_FW_OFFSET         UL(0x00202000)
++#define RZG3E_SPIROM_M33_FW_BASE    (RZG3E_XSPI_MEMORY_MAP_BASE + RZG3E_M33_FW_OFFSET)
++#define RZG3E_EMMC_M33_FW_BASE      (RZG3E_M33_FW_OFFSET)
++#define RZG3E_SD_M33_FW_BASE        (RZG3E_M33_FW_OFFSET)
++#define RZG3E_M33_FW_SIZE           UL(0x0001A000)
++#endif
++
+ #define RZG3E_SD_FIP_BASE			RZG3E_BL2_SIZE_MAX
+ #define RZG3E_SD_FIP_SIZE			RZG3E_FIP_SIZE_MAX
+ 
+diff --git a/plat/renesas/rz/soc/g3e/include/sys.h b/plat/renesas/rz/soc/g3e/include/sys.h
+index a210d2d15..3b6f5d818 100644
+--- a/plat/renesas/rz/soc/g3e/include/sys.h
++++ b/plat/renesas/rz/soc/g3e/include/sys.h
+@@ -20,6 +20,12 @@ typedef enum {
+ 	SYS_BOOT_MODE_MAX,
+ } boot_mode_t;
+ 
++#if PLAT_M33_BOOT_SUPPORT
++void sys_mcpu_config_setup(void);
++void sys_m33_core_boot_on(uintptr_t vector);
++bool sys_is_m33_core_booted(void);
++#endif
++
+ bool sys_is_resume_reboot(void);
+ boot_mode_t sys_get_boot_mode(void);
+ 
+diff --git a/plat/renesas/rz/soc/g3e/plat_storage.c b/plat/renesas/rz/soc/g3e/plat_storage.c
+index b58129982..fa7b330b3 100644
+--- a/plat/renesas/rz/soc/g3e/plat_storage.c
++++ b/plat/renesas/rz/soc/g3e/plat_storage.c
+@@ -16,6 +16,9 @@
+ #include <lib/mmio.h>
+ #include <tools_share/firmware_image_package.h>
+ #include <plat_tbbr_img_def.h>
++#if PLAT_M33_BOOT_SUPPORT
++#include <io_xspidrv.h>
++#endif
+ #include <rz_soc_def.h>
+ #include <sys.h>
+ #include <xspi.h>
+@@ -86,6 +89,17 @@ static const io_uuid_spec_t nt_fw_content_cert_file_spec = {
+ };
+ #endif
+ 
++#if PLAT_M33_BOOT_SUPPORT
++static const io_block_spec_t spirom_bl22_image_spec = {
++	.offset = RZG3E_SPIROM_M33_FW_BASE,
++	.length = RZG3E_M33_FW_SIZE,
++};
++static const io_block_spec_t emmc_bl22_image_spec = {
++	.offset = RZG3E_EMMC_M33_FW_BASE,
++	.length = RZG3E_M33_FW_SIZE,
++};
++#endif /* PLAT_M33_BOOT_SUPPORT */
++
+ static int32_t open_emmcdrv(const uintptr_t spec);
+ static int32_t open_memmap(const uintptr_t spec);
+ static int32_t open_sddrv(const uintptr_t spec);
+@@ -153,6 +167,20 @@ static int32_t open_xspidrv(const uintptr_t spec)
+ }
+ #endif /* PLAT_SYSTEM_SUSPEND */
+ 
++#if PLAT_M33_BOOT_SUPPORT
++static const struct plat_io_policy emmc_bl22_image_policy = {
++	&emmcdrv_dev_handle,
++	(uintptr_t) &emmc_bl22_image_spec,
++	&open_emmcdrv
++};
++
++static const struct plat_io_policy spirom_bl22_image_policy = {
++	&memdrv_dev_handle,
++	(uintptr_t) &spirom_bl22_image_spec,
++	&open_memmap
++};
++#endif /* PLAT_M33_BOOT_SUPPORT */
++
+ static struct plat_io_policy policies[MAX_NUMBER_IDS] = {
+ 	/* FIP_IMAGE_ID structure is added to this array on a bootmode basis */
+ 
+@@ -260,6 +288,9 @@ static void update_dev_policies(uint16_t boot_mode)
+ 		policies[FIP_IMAGE_ID] = spirom_fip_policy;
+ #if PLAT_SYSTEM_SUSPEND
+ 		policies[G3E_DDR_CONFIG_ID] = spirom_ddr_config_policy;
++#endif
++#if PLAT_M33_BOOT_SUPPORT
++		policies[BL22_IMAGE_ID]         = spirom_bl22_image_policy;
+ #endif
+ 		break;
+ 	case SYS_BOOT_MODE_EMMC_1_8:
+@@ -267,6 +298,9 @@ static void update_dev_policies(uint16_t boot_mode)
+ 		policies[FIP_IMAGE_ID] = emmc_fip_policy;
+ #if PLAT_SYSTEM_SUSPEND
+ 		policies[G3E_DDR_CONFIG_ID] = emmc_ddr_config_policy;
++#endif
++#if PLAT_M33_BOOT_SUPPORT
++		policies[BL22_IMAGE_ID]         = emmc_bl22_image_policy;
+ #endif
+ 		break;
+ 	case SYS_BOOT_MODE_ESD:
+diff --git a/plat/renesas/rz/soc/g3e/platform.mk b/plat/renesas/rz/soc/g3e/platform.mk
+index de007c3..bfd2426 100644
+--- a/plat/renesas/rz/soc/g3e/platform.mk
++++ b/plat/renesas/rz/soc/g3e/platform.mk
+@@ -67,3 +67,6 @@ endif
+ ifeq (${ENABLE_RZG3E_CM33_BOOT}, 1)
+ $(eval $(call add_define, ENABLE_RZG3E_CM33_BOOT))
+ endif
++ifeq (${ENABLE_CM33_FIRMWARE_LOAD}, 1)
++TF_CFLAGS += -DPLAT_M33_BOOT_SUPPORT=1
++endif
+diff --git a/include/common/tbbr/tbbr_img_def.h b/include/common/tbbr/tbbr_img_def.h
+index e1c8c298b..0e4075a1b 100644
+--- a/include/common/tbbr/tbbr_img_def.h
++++ b/include/common/tbbr/tbbr_img_def.h
+@@ -26,12 +26,12 @@
+ #define MAX_IMG_IDS_WITH_SPMDS		MAX_IMAGE_IDS
+ #endif
+ 
+-#ifdef PLAT_TBBR_IMG_DEF
+-#include <plat_tbbr_img_def.h>
+-#endif
+-
+ #ifndef MAX_NUMBER_IDS
+ #define MAX_NUMBER_IDS			MAX_IMG_IDS_WITH_SPMDS
+ #endif
+ 
++#ifdef PLAT_TBBR_IMG_DEF
++#include <plat_tbbr_img_def.h>
++#endif
++
+ #endif /* TBBR_IMG_DEF_H */

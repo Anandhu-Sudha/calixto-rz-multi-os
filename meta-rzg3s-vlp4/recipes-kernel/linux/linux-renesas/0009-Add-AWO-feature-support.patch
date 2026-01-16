@@ -1,0 +1,121 @@
+diff --git a/arch/arm64/boot/dts/renesas/rzg3s-smarc-som.dtsi b/arch/arm64/boot/dts/renesas/rzg3s-smarc-som.dtsi
+index 94dcbe640b0d..470f1c3f3169 100644
+--- a/arch/arm64/boot/dts/renesas/rzg3s-smarc-som.dtsi
++++ b/arch/arm64/boot/dts/renesas/rzg3s-smarc-som.dtsi
+@@ -389,7 +389,7 @@ &wdt0 {
+ };
+ 
+ &ostm0 {
+-	status = "okay";
++	status = "disabled";
+ };
+ 
+ &ostm1 {
+@@ -401,7 +401,7 @@ &ostm2 {
+ };
+ 
+ &ostm3 {
+-	status = "okay";
++	status = "disabled";
+ };
+ 
+ &ostm4 {
+diff --git a/arch/arm64/boot/dts/renesas/rzg3s-smarc.dtsi b/arch/arm64/boot/dts/renesas/rzg3s-smarc.dtsi
+index 8f8e6e7ac7a4..adb10a818d0f 100644
+--- a/arch/arm64/boot/dts/renesas/rzg3s-smarc.dtsi
++++ b/arch/arm64/boot/dts/renesas/rzg3s-smarc.dtsi
+@@ -348,7 +348,7 @@ &spi0 {
+ 	dmas = <&dmac 0x2ed9>, <&dmac 0x2eda>;
+ 	dma-names = "tx", "rx";
+ 
+-	status = "okay";
++	status = "disabled";
+ #if RSPI0_LOOPBACK_SEL
+ 	spidev@0 {
+ 		compatible = "rohm,dh2228fv";
+@@ -380,7 +380,7 @@ scratch@0 {
+ &canfd {
+ 	pinctrl-0 = <&can0_pins &can1_pins>;
+ 	pinctrl-names = "default";
+-	status = "okay";
++	status = "disabled";
+ 
+ 	channel0 {
+ 		status = "okay";
+diff --git a/drivers/clk/renesas/r9a08g045-cpg.c b/drivers/clk/renesas/r9a08g045-cpg.c
+index 083e38d9cfcb..08595506ab33 100644
+--- a/drivers/clk/renesas/r9a08g045-cpg.c
++++ b/drivers/clk/renesas/r9a08g045-cpg.c
+@@ -393,6 +393,16 @@ static const struct rzg2l_reset r9a08g045_resets[] = {
+ };
+ 
+ static const unsigned int r9a08g045_crit_mod_clks[] __initconst = {
++	MOD_CLK_BASE + R9A08G045_DMAC_PCLK,
++	MOD_CLK_BASE + R9A08G045_CANFD_CLK_RAM,
++	MOD_CLK_BASE + R9A08G045_CANFD_PCLK,
++	MOD_CLK_BASE + R9A08G045_RSPI0_CLKB,
++	MOD_CLK_BASE + R9A08G045_OSTM0_PCLK,
++	MOD_CLK_BASE + R9A08G045_OSTM3_PCLK,
++	MOD_CLK_BASE + R9A08G045_SPI_CLK,
++	MOD_CLK_BASE + R9A08G045_SPI_HCLK,
++	MOD_CLK_BASE + R9A08G045_SPI_ACLK,
++	MOD_CLK_BASE + R9A08G045_SPI_CLKX2,
+ 	MOD_CLK_BASE + R9A08G045_GIC600_GICCLK,
+ 	MOD_CLK_BASE + R9A08G045_IA55_PCLK,
+ 	MOD_CLK_BASE + R9A08G045_IA55_CLK,
+diff --git a/drivers/dma/sh/rz-dmac.c b/drivers/dma/sh/rz-dmac.c
+index 5c54c0deb8d9..984f1ec4d6f3 100644
+--- a/drivers/dma/sh/rz-dmac.c
++++ b/drivers/dma/sh/rz-dmac.c
+@@ -137,6 +137,7 @@ struct rz_dmac {
+ 
+ #define CHSTAT_ER			BIT(4)
+ #define CHSTAT_EN			BIT(0)
++#define CHSTAT_TACT                     BIT(2)          // for AWO
+ 
+ #define CHCTRL_CLRINTMSK		BIT(17)
+ #define CHCTRL_CLRSUS			BIT(9)
+@@ -704,6 +705,22 @@ static void rz_dmac_device_synchronize(struct dma_chan *chan)
+ 	}
+ }
+ 
++// for AWO
++static void rz_dmac_wait_terminate(struct dma_chan *chan)
++{
++       struct rz_dmac_chan *channel = to_rz_dmac_chan(chan);
++       struct rz_dmac *dmac = to_rz_dmac(chan->device);
++       u32 chstat;
++       int ret;
++
++       ret = read_poll_timeout(rz_dmac_ch_readl, chstat, !(chstat & (CHSTAT_EN | CHSTAT_TACT)),
++                               100, 100000, false, channel, CHSTAT, 1);
++       if (ret < 0)
++               dev_warn(dmac->dev, "DMA Timeout");
++
++       rz_dmac_set_dmars_register(dmac, channel->index, 0);
++}
++
+ static unsigned int calculate_total_byte_number_in_virtual_desc(struct rz_dmac_desc *desc)
+ {
+ 	struct scatterlist *sg, *sgl = desc->sg;
+@@ -1013,7 +1030,11 @@ static int __maybe_unused rz_dmac_suspend(struct device *dev)
+ 	struct rz_dmac *dmac = dev_get_drvdata(dev);
+ 
+ 	if (console_suspend_enabled) {
+-		reset_control_assert(dmac->rstc);
++		for (int i = 0; i < dmac->n_channels; i++)
++		{
++			rz_dmac_terminate_all(&dmac->channels[i].vc.chan);
++			rz_dmac_wait_terminate(&dmac->channels[i].vc.chan);
++		}
+ 		pm_runtime_put(dev);
+ 	}
+ 
+@@ -1026,7 +1047,6 @@ static int __maybe_unused rz_dmac_resume(struct device *dev)
+ 
+ 	if (console_suspend_enabled) {
+ 		pm_runtime_get_sync(dev);
+-		reset_control_deassert(dmac->rstc);
+ 	}
+ 
+ 	return rz_dmac_init(dmac);

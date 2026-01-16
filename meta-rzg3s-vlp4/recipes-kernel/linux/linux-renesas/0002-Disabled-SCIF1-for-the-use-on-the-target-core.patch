@@ -1,0 +1,13 @@
+diff --git a/arch/arm64/boot/dts/renesas/rz-smarc-pmod1-type-3a.dtsi b/arch/arm64/boot/dts/renesas/rz-smarc-pmod1-type-3a.dtsi
+index 7e4b62d06ef8..b0f7bed57c7b 100644
+--- a/arch/arm64/boot/dts/renesas/rz-smarc-pmod1-type-3a.dtsi
++++ b/arch/arm64/boot/dts/renesas/rz-smarc-pmod1-type-3a.dtsi
+@@ -48,7 +48,7 @@ &scif1 {
+ 	pinctrl-names = "default";
+ 	pinctrl-0 = <&scif1_pins>;
+ 	uart-has-rtscts;
+-	status = "okay";
++	status = "disabled";
+ };
+ #elif SPDIF_SEL
+ &spdif {

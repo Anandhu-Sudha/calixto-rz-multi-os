@@ -1,0 +1,18 @@
+diff --git a/arch/arm64/boot/dts/renesas/rzg3e-smarc-som.dtsi b/arch/arm64/boot/dts/renesas/rzg3e-smarc-som.dtsi
+index a7faf35cf056..3bec4e6d4a9e 100644
+--- a/arch/arm64/boot/dts/renesas/rzg3e-smarc-som.dtsi
++++ b/arch/arm64/boot/dts/renesas/rzg3e-smarc-som.dtsi
+@@ -741,11 +741,11 @@ &adc {
+        status = "okay";
+ };
+ 
+-&ostm0 {
++&ostm2 {
+ 	status = "okay";
+ };
+ 
+-&ostm1 {
++&ostm3 {
+ 	status = "okay";
+ };
+ 

@@ -1,0 +1,22 @@
+diff --git a/drivers/clk/renesas/r9a09g047-cpg.c b/drivers/clk/renesas/r9a09g047-cpg.c
+index c5c4c55..00cb50a 100644
+--- a/drivers/clk/renesas/r9a09g047-cpg.c
++++ b/drivers/clk/renesas/r9a09g047-cpg.c
+@@ -310,6 +310,7 @@ static const struct rzv2h_mod_clk r9a09g047_mod_clks[] = {
+ 	DEF_MOD("rcpu_dmac1_aclk",		CLK_PLLDTY_RCPU_DIV4, 0, 4, 0, 4),
+ 	DEF_MOD_CRITICAL("icu",			CLK_PLLCM33_DIV16, 0, 5, 0, 5),
+ 	DEF_MOD_CRITICAL("gic",			CLK_PLLDTY_ACPU_DIV4, 1, 3, 0, 19),
++	DEF_MOD("cm33_clk1",			CLK_QEXTAL, 1, 2, 0, 18),
+ 	DEF_MOD("gpt0_pclk_sfr",		CLK_PLLCLN_DIV8, 3, 1, 1, 17),
+ 	DEF_MOD("gpt1_pclk_sfr",		CLK_PLLCLN_DIV8, 3, 2, 1, 18),
+ 	DEF_MOD("poega",			CLK_PLLCLN_DIV32, 3, 3, 1, 19),
+@@ -687,6 +688,9 @@ static const struct rzv2h_reset r9a09g047_resets[]  = {
+ 	DEF_RST(18, 4, 9, 4),		/* FDP1_BRDG_RESETN */
+ 	DEF_RST(18, 5, 9, 5),		/* FDP1_FDP1_RESETN */
+ 	DEF_RST(18, 6, 9, 6),		/* FDP1_FCPF1_RESETP */
++	DEF_RST(1, 3, 0, 17),		/* CM33_RESET2 */
++	DEF_RST(1, 4, 0, 18),		/* CM33_RESET0 */
++	DEF_RST(1, 5, 0, 19),		/* CM33_RESET1 */
+ };
+ 
+ const struct rzv2h_cpg_info r9a09g047_cpg_info = {

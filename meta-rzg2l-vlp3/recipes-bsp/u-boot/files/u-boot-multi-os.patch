@@ -1,0 +1,58 @@
+diff --git a/arch/arm/dts/rzg2ul-calixto-tiny.dts b/arch/arm/dts/rzg2ul-calixto-tiny.dts
+index 7b00610a..d2478423 100755
+--- a/arch/arm/dts/rzg2ul-calixto-tiny.dts
++++ b/arch/arm/dts/rzg2ul-calixto-tiny.dts
+@@ -25,19 +25,19 @@
+ 	};
+ 
+ #ifdef CONFIG_CALIXTO_DDR3L_512MB
+-	memory@40200000 {
++	memory@48000000 {
+ 		device_type = "memory";
+-		/* first 2MB is reserved for secure area. */
+-		reg = <0 0x40200000 0 0x1FE00000>;
++		/* first 128MB is reserved for secure area. */
++		reg = <0 0x48000000 0 0x1FE00000>;
+ 	};
+ #endif
+ 
+ 
+ #ifdef CONFIG_CALIXTO_DDR3L_1GB
+-	memory@40200000 {
++	memory@48000000 {
+ 		device_type = "memory";
+ 		/* first 128MB is reserved for secure area. */
+-		reg = <0 0x40200000 0 0x38000000>;
++		reg = <0 0x48000000 0 0x38000000>;
+ 	};
+ #endif
+ 
+diff --git a/configs/rzg2ul_calixto_tiny_1GB_defconfig b/configs/rzg2ul_calixto_tiny_1GB_defconfig
+index 17d7f531..cb840c69 100755
+--- a/configs/rzg2ul_calixto_tiny_1GB_defconfig
++++ b/configs/rzg2ul_calixto_tiny_1GB_defconfig
+@@ -30,6 +30,7 @@ CONFIG_CMD_MII=y
+ CONFIG_CMD_PING=y
+ CONFIG_CMD_EXT2=y
+ CONFIG_CMD_EXT4=y
++CONFIG_CMD_CM33=y
+ CONFIG_CMD_EXT4_WRITE=y
+ CONFIG_CMD_FAT=y
+ CONFIG_CMD_FS_GENERIC=y
+diff --git a/include/configs/rzg2ul-tiny.h b/include/configs/rzg2ul-tiny.h
+index ff496013..18cb7756 100755
+--- a/include/configs/rzg2ul-tiny.h
++++ b/include/configs/rzg2ul-tiny.h
+@@ -73,9 +73,9 @@
+ 	"bootm_size=0x10000000 \0" \
+ 	"prodsdbootargs=setenv bootargs rw rootwait earlycon root=/dev/mmcblk1p1 \0" \
+ 	"prodemmcbootargs=setenv bootargs rw rootwait earlycon root=/dev/mmcblk0p1 \0" \
+-	"bootimage=unzip 0x4A080000 0x48080000; booti 0x40280000 - 0x40200000 \0" \
+-	"emmcload=ext4load mmc 0:1 0x40280000 boot/Image;ext4load mmc 0:1 0x40200000 boot/rzg2ul-calixto-tiny.dtb;run prodemmcbootargs \0" \
+-	"sd1load=ext4load mmc 1:1 0x40280000 boot/Image;ext4load mmc 1:1 0x40200000 boot/rzg2ul-calixto-tiny.dtb;run prodsdbootargs \0" \
++	"bootimage=unzip 0x4A080000 0x48080000; booti 0x48080000 - 0x48000000 \0" \
++	"emmcload=ext4load mmc 0:1 0x48080000 boot/Image;ext4load mmc 0:1 0x48000000 boot/rzg2ul-calixto-tiny.dtb;run prodemmcbootargs \0" \
++	"sd1load=ext4load mmc 1:1 0x48080000 boot/Image;ext4load mmc 1:1 0x48000000 boot/rzg2ul-calixto-tiny.dtb;run prodsdbootargs \0" \
+ 	"bootcmd_check=if mmc dev 1; then run sd1load; else run emmcload; fi \0"
+ 
+ #define CONFIG_BOOTCOMMAND	"run bootcmd_check;run bootimage"

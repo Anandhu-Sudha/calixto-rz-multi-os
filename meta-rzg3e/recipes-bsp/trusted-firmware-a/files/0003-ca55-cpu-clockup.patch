@@ -1,0 +1,52 @@
+diff --git a/plat/renesas/rz/soc/g3e/bl2_plat_setup.c b/plat/renesas/rz/soc/g3e/bl2_plat_setup.c
+index 3803b887e..fdd79f97b 100644
+--- a/plat/renesas/rz/soc/g3e/bl2_plat_setup.c
++++ b/plat/renesas/rz/soc/g3e/bl2_plat_setup.c
+@@ -48,12 +48,26 @@ int bl2_plat_handle_pre_image_load(unsigned int image_id)
+ 	bl_mem_params_node_t *bl_mem_params = get_bl_mem_params_node(image_id);
+ 
+ #if PLAT_M33_BOOT_SUPPORT
++#if PLAT_CA55_CLOCKUP
++	if (image_id == BL31_IMAGE_ID) {
++		if (!sys_is_m33_core_booted()){
++			bl_mem_params->image_info.h.attr |= IMAGE_ATTRIB_SKIP_LOADING;
++		}
++	}
++#endif
+ 	if (image_id == BL22_IMAGE_ID) {
+ 		if (sys_is_m33_core_booted()) {
+ 			bl_mem_params->image_info.h.attr |= IMAGE_ATTRIB_SKIP_LOADING;
+ 		}
+ 
+ 	}
++#if PLAT_CA55_CLOCKUP
++	if(image_id == BL32_IMAGE_ID || image_id == BL33_IMAGE_ID) {
++		if (!sys_is_m33_core_booted()) {
++			bl_mem_params->image_info.h.attr |= IMAGE_ATTRIB_SKIP_LOADING;
++		}
++	}
++#endif
+ #else
+ 	if (bl2_plat_get_boot_mode() == RZ_WARM_BOOT)
+ 		bl_mem_params->image_info.h.attr |= IMAGE_ATTRIB_SKIP_LOADING;
+@@ -221,6 +235,9 @@ void bl2_el3_plat_prepare_exit(void)
+ 		bl_mem_params_node_t *bl22_mem_params = get_bl_mem_params_node(BL22_IMAGE_ID);
+ 		if (bl22_mem_params != NULL) {
+ 			sys_m33_core_boot_on((bl22_mem_params->ep_info).pc);
++#if PLAT_CA55_CLOCKUP
++			wfi();
++#endif
+ 		}
+ 	}
+ }
+diff --git a/plat/renesas/rz/soc/g3e/platform.mk b/plat/renesas/rz/soc/g3e/platform.mk
+index bfd2426..644b80f 100644
+--- a/plat/renesas/rz/soc/g3e/platform.mk
++++ b/plat/renesas/rz/soc/g3e/platform.mk
+@@ -70,3 +70,6 @@ endif
+ ifeq (${ENABLE_CM33_FIRMWARE_LOAD}, 1)
+ TF_CFLAGS += -DPLAT_M33_BOOT_SUPPORT=1
+ endif
++ifeq (${ENABLE_CA55_CLOCKUP}, 1)
++TF_CFLAGS += -DPLAT_CA55_CLOCKUP=1
++endif

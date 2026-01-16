@@ -1,0 +1,48 @@
+diff --git a/plat/renesas/rz/soc/g3e/include/platform_def.h b/plat/renesas/rz/soc/g3e/include/platform_def.h
+index 09619a432..e61dc6728 100644
+--- a/plat/renesas/rz/soc/g3e/include/platform_def.h
++++ b/plat/renesas/rz/soc/g3e/include/platform_def.h
+@@ -47,8 +47,13 @@
+  * BL2 specific defines.
+  * BL2_LIMIT = maximum build size of BL2 (when in verbose and debug mode)
+  ******************************************************************************/
+-#define BL2_BASE				UL(0x08004000)
+-#define BL2_LIMIT				UL(0x08040000)
++#ifdef ENABLE_RZG3E_CM33_BOOT
++#define BL2_BASE				UL(0x08020000)
++#define BL2_LIMIT				UL(0x08070000)
++#else
++#define BL2_BASE                               UL(0x08004000)
++#define BL2_LIMIT                              UL(0x08040000)
++#endif
+ 
+ /*
+  * This is used to reduce the size of the translation tables needed
+diff --git a/plat/renesas/rz/soc/g3e/include/rz_soc_def.h b/plat/renesas/rz/soc/g3e/include/rz_soc_def.h
+index eecb9fba3..2dddd3b7c 100644
+--- a/plat/renesas/rz/soc/g3e/include/rz_soc_def.h
++++ b/plat/renesas/rz/soc/g3e/include/rz_soc_def.h
+@@ -78,7 +78,11 @@
+  */
+ #define RZG3E_FIP_SIZE_MAX			UL(0x001A0000)
+ 
+-#define RZG3E_SPIROM_FIP_BASE		(RZG3E_XSPI_MEMORY_MAP_BASE + RZG3E_BL2_SIZE_MAX)
++#ifdef ENABLE_RZG3E_CM33_BOOT
++#define RZG3E_SPIROM_FIP_BASE          (RZG3E_XSPI_MEMORY_MAP_BASE + 0x00160000)
++#else
++#define RZG3E_SPIROM_FIP_BASE          (RZG3E_XSPI_MEMORY_MAP_BASE + RZG3E_BL2_SIZE_MAX)
++#endif
+ #define RZG3E_SPIROM_FIP_SIZE		RZG3E_FIP_SIZE_MAX
+ 
+ #define RZG3E_EMMC_FIP_BASE			RZG3E_BL2_SIZE_MAX
+diff --git a/plat/renesas/rz/soc/g3e/platform.mk b/plat/renesas/rz/soc/g3e/platform.mk
+index 5c5f7a346..24bc7c66c 100644
+--- a/plat/renesas/rz/soc/g3e/platform.mk
++++ b/plat/renesas/rz/soc/g3e/platform.mk
+@@ -64,3 +64,6 @@ ifneq (${DEBUG}, 0)
+ TF_CFLAGS += -O0 -fstack-usage
+ ASFLAGS += -O0 -fstack-usage
+ endif
++ifeq (${ENABLE_RZG3E_CM33_BOOT}, 1)
++$(eval $(call add_define, ENABLE_RZG3E_CM33_BOOT))
++endif

@@ -1,0 +1,25 @@
+From 8079bb3bcf0db0d7f9bc090785c9a3bf13d491b0 Mon Sep 17 00:00:00 2001
+From: "tuan.tran.jc" <tuan.tran.jc@bp.renesas.com>
+Date: Tue, 18 Nov 2025 14:22:08 +0700
+Subject: [PATCH 10/16] clk: Add I2 clock
+
+Signed-off-by: tuan.tran.jc <tuan.tran.jc@bp.renesas.com>
+---
+ drivers/clk/renesas/r9a07g043-cpg.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/clk/renesas/r9a07g043-cpg.c b/drivers/clk/renesas/r9a07g043-cpg.c
+index c5861210319b..4235006923d0 100644
+--- a/drivers/clk/renesas/r9a07g043-cpg.c
++++ b/drivers/clk/renesas/r9a07g043-cpg.c
+@@ -131,6 +131,7 @@ static const struct cpg_core_clk r9a07g043_core_clks[] __initconst = {
+ 
+ 	/* Core output clk */
+ 	DEF_DIV("I", R9A07G043_CLK_I, CLK_PLL1, DIVPL1A, dtable_1_8),
++	DEF_DIV("I2", R9A07G043_CLK_I2, CLK_PLL3_DIV2_4, DIVPL3CLK200FIX, dtable_1_32),
+ 	DEF_DIV("P0", R9A07G043_CLK_P0, CLK_PLL2_DIV2_8, DIVPL2A, dtable_1_32),
+ 	DEF_FIXED("P0_DIV2", R9A07G043_CLK_P0_DIV2, R9A07G043_CLK_P0, 1, 2),
+ 	DEF_FIXED("TSU", R9A07G043_CLK_TSU, CLK_PLL2_DIV2_10, 1, 1),
+-- 
+2.34.1
+

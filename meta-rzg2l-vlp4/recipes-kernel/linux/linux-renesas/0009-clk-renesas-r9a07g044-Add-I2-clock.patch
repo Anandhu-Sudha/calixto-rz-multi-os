@@ -1,0 +1,55 @@
+From 7db8742ed84f2b0dd98a1d2832ae66cde0af71d8 Mon Sep 17 00:00:00 2001
+From: "tuan.tran.jc" <tuan.tran.jc@bp.renesas.com>
+Date: Tue, 18 Nov 2025 14:17:16 +0700
+Subject: [PATCH 9/16] clk: Add I2 clock
+
+Signed-off-by: tuan.tran.jc <tuan.tran.jc@bp.renesas.com>
+---
+ drivers/clk/renesas/r9a07g044-cpg.c | 3 ++-
+ drivers/clk/renesas/rzg2l-cpg.h     | 2 ++
+ 2 files changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/clk/renesas/r9a07g044-cpg.c b/drivers/clk/renesas/r9a07g044-cpg.c
+index 452e24a42d52..0b9a305d5d73 100644
+--- a/drivers/clk/renesas/r9a07g044-cpg.c
++++ b/drivers/clk/renesas/r9a07g044-cpg.c
+@@ -147,7 +147,7 @@ static const char * const sel_gpu2[] = { ".pll6", ".pll3_div2_2" };
+ static const u32 mtable_sdhi[] = { 1, 2, 3 };
+ 
+ static const struct {
+-	struct cpg_core_clk common[56];
++	struct cpg_core_clk common[57];
+ #ifdef CONFIG_CLK_R9A07G054
+ 	struct cpg_core_clk drp[3];
+ #endif
+@@ -200,6 +200,7 @@ static const struct {
+ 
+ 		/* Core output clk */
+ 		DEF_DIV("I", R9A07G044_CLK_I, CLK_PLL1, DIVPL1A, dtable_1_8),
++		DEF_DIV("I2", R9A07G044_CLK_I2, CLK_PLL3_DIV2_4, DIVPL3CLK200FIX, dtable_1_32),
+ 		DEF_DIV("P0", R9A07G044_CLK_P0, CLK_PLL2_DIV2_8, DIVPL2A, dtable_1_32),
+ 		DEF_FIXED("P0_DIV2", R9A07G044_CLK_P0_DIV2, R9A07G044_CLK_P0, 1, 2),
+ 		DEF_FIXED("TSU", R9A07G044_CLK_TSU, CLK_PLL2_DIV2_10, 1, 1),
+diff --git a/drivers/clk/renesas/rzg2l-cpg.h b/drivers/clk/renesas/rzg2l-cpg.h
+index 02dacf7bbc1f..0241a4f832e9 100644
+--- a/drivers/clk/renesas/rzg2l-cpg.h
++++ b/drivers/clk/renesas/rzg2l-cpg.h
+@@ -20,6 +20,7 @@
+ #define CPG_PL1_DDIV		(0x200)
+ #define CPG_PL2_DDIV		(0x204)
+ #define CPG_PL3A_DDIV		(0x208)
++#define CPG_PL3B_DDIV		(0x20C)
+ #define CPG_PL6_DDIV		(0x210)
+ #define CPG_PL3C_SDIV		(0x214)
+ #define CPG_CLKSTATUS		(0x280)
+@@ -61,6 +62,7 @@
+ #define DIVPL3C		DDIV_PACK(CPG_PL3A_DDIV, 8, 3)
+ #define DIVPL3E		DDIV_PACK(CPG_PL3C_SDIV, 8, 5)
+ #define DIVGPU		DDIV_PACK(CPG_PL6_DDIV, 0, 2)
++#define DIVPL3CLK200FIX	DDIV_PACK(CPG_PL3B_DDIV, 0, 3)
+ 
+ #define SEL_PLL_PACK(offset, bitpos, size) \
+ 		(((offset) << 20) | ((bitpos) << 12) | ((size) << 8))
+-- 
+2.34.1
+
