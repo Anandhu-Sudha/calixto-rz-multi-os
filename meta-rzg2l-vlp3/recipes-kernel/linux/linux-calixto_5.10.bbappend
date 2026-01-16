@@ -1,5 +1,8 @@
 FILESEXTRAPATHS_prepend := "${THISDIR}/${PN}:"
 
+SRC_URI = "git://github.com/Anandhu-Sudha/rz-kernel-calixto.git;branch=rz-5.10-cip54"
+SRCREV = "5394932a62b18c0fed2079d698cedebc62d5a607"
+
 ENABLE_REMOTEPROC = "1"
 
 # List of kernel patches
